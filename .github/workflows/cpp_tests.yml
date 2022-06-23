@@ -114,7 +114,7 @@ jobs:
       shell: pwsh
       run: |
         curl -LS -o vulkansdk.exe `
-          https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe?Human=true
+          https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe
         7z x vulkansdk.exe -o"${{ env.windows_vulkan_sdk }}"
     - name: Test Vulkan SDK
       shell: powershell
