@@ -115,7 +115,7 @@ jobs:
       run: |
         curl -LS -o vulkansdk.exe `
           https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe
-        7z x vulkansdk.exe -o"${{ env.windows_vulkan_sdk }}"
+        vulkansdk.exe /S
     - name: Test Vulkan SDK
       shell: powershell
       run: |
@@ -130,7 +130,6 @@ jobs:
     - name: "[Release g++] Build & Test"
       env:
         VK_ICD_FILENAMES: "/swiftshader/vk_swiftshader_icd.json"
-        VULKAN_SDK: "${{ env.windows_vulkan_sdk }}"
       uses: ashutoshvarma/action-cmake-build@master
       with:
         build-dir: ${{github.workspace}}/build
