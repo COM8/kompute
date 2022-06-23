@@ -5,7 +5,26 @@ project(kompute VERSION 1.8.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 
-message(FATAL_ERROR "VULKAN_SDK_ENV: $ENV{VULKAN_SDK}")
+message(WARNING "VULKAN_SDK_ENV: $ENV{VULKAN_SDK}")
+set(_Vulkan_hint_include_search_paths
+    "$ENV{VULKAN_SDK}/Include"
+)
+find_path(Vulkan_INCLUDE_DIR
+    NAMES vulkan/vulkan.h
+    HINTS
+    ${_Vulkan_hint_include_search_paths}
+    REQUIRED
+)
+mark_as_advanced(Vulkan_LIBRARY)
+message(WARNING "INCLUDE: ${Vulkan_INCLUDE_DIR}")
+
+find_library(Vulkan_LIBRARY
+    NAMES ${_Vulkan_library_name}
+    HINTS
+    ${_Vulkan_hint_library_search_paths}
+    REQUIRED
+)
+message(WARNING "LIBS: ${Vulkan_LIBRARY}")
 
 # Only change the folder behaviour if kompute is not a subproject
 if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
