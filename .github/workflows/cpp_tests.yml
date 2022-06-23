@@ -119,7 +119,6 @@ jobs:
         echo "Vulkan SDK Version=='$env:VULKAN_SDK_VERSION'"
         if (!$env:VULKAN_SDK_VERSION) { throw "Vulkan SDK install error" }
         TREE . /F
-        throw "Vulkan SDK install error"
     - name: Checkout
       uses: actions/checkout@v3
       with:
