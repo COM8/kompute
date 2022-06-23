@@ -111,17 +111,10 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Install Vulkan SDK
-      shell: pwsh
       run: |
-        curl -LS -o vulkansdk.exe `
-          https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe
-        ./vulkansdk.exe /S
-    - name: Test Vulkan SDK
-      shell: powershell
-      run: |
-        $ENV:PATH="$ENV:PATH;$ENV:VULKAN_SDK/bin"
-        echo "Vulkan SDK Version=='$env:VULKAN_SDK_VERSION'"
-        if (!$env:VULKAN_SDK_VERSION) { throw "Vulkan SDK install error" }
+        Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe?Human=true -OutFile VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe
+        7z x -aoa ./VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe -oVulkanSDK
+        Remove-Item .\VulkanSDK\Demos, .\VulkanSDK\Samples, .\VulkanSDK\Third-Party, .\VulkanSDK\Tools, .\VulkanSDK\Tools32, .\VulkanSDK\Bin32, .\VulkanSDK\Lib32 -Recurse
     - name: Checkout
       uses: actions/checkout@v3
       with:
@@ -129,6 +122,7 @@ jobs:
     - name: "[Release g++] Build & Test"
       env:
         VK_ICD_FILENAMES: "/swiftshader/vk_swiftshader_icd.json"
+        VULKAN_SDK: "$GITHUB_WORKSPACE/VulkanSDK"
       uses: ashutoshvarma/action-cmake-build@master
       with:
         build-dir: ${{github.workspace}}/build
