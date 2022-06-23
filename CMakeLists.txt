@@ -10,7 +10,7 @@ set(_Vulkan_hint_include_search_paths
     "$ENV{VULKAN_SDK}/Include"
 )
 find_path(Vulkan_INCLUDE_DIR
-    NAMES vulkan/vulkan.h
+    NAMES "vulkan\\vulkan.h"
     HINTS
     ${_Vulkan_hint_include_search_paths}
     REQUIRED
@@ -18,6 +18,10 @@ find_path(Vulkan_INCLUDE_DIR
 mark_as_advanced(Vulkan_LIBRARY)
 message(WARNING "INCLUDE: ${Vulkan_INCLUDE_DIR}")
 
+set(_Vulkan_hint_library_search_paths
+    "$ENV{VULKAN_SDK}/Lib"
+    "$ENV{VULKAN_SDK}/Bin"
+)
 find_library(Vulkan_LIBRARY
     NAMES ${_Vulkan_library_name}
     HINTS
