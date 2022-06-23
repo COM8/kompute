@@ -113,7 +113,7 @@ jobs:
     - name: Install Vulkan SDK
       run: |
         Invoke-WebRequest -Uri https://sdk.lunarg.com/sdk/download/1.3.216.0/windows/VulkanSDK-1.3.216.0-Installer.exe -OutFile VulkanSDK-1.3.216.0-Installer.exe
-        7z x -aoa ./VulkanSDK-1.3.216.0-Installer.exe -oVulkanSDK
+        7z x -aoa ./VulkanSDK-1.3.216.0-Installer.exe -o '${{github.workspace}}/VulkanSDK'
         TREE '${{github.workspace}}/VulkanSDK' /F
     - name: Checkout
       uses: actions/checkout@v3
