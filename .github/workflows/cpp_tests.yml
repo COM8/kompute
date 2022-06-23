@@ -112,6 +112,12 @@ jobs:
         vulkan-query-version: 1.3.204.0
         vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
         vulkan-use-cache: true
+    - name: Test Vulkan SDK
+      shell: powershell
+      run: |
+        $ENV:PATH="$ENV:PATH;$ENV:VULKAN_SDK/bin"
+        echo "Vulkan SDK Version=='$env:VULKAN_SDK_VERSION'"
+        if (!$env:VULKAN_SDK_VERSION) { throw "Vulkan SDK install error" }
     - name: Checkout
       uses: actions/checkout@v3
       with:
