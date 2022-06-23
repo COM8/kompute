@@ -115,14 +115,13 @@ jobs:
       run: |
         curl -LS -o vulkansdk.exe `
           https://sdk.lunarg.com/sdk/download/${{ env.windows_vulkan_version }}/windows/VulkanSDK-${{ env.windows_vulkan_version }}-Installer.exe
-        .\vulkansdk.exe /S
+        ./vulkansdk.exe /S
     - name: Test Vulkan SDK
       shell: powershell
       run: |
         $ENV:PATH="$ENV:PATH;$ENV:VULKAN_SDK/bin"
         echo "Vulkan SDK Version=='$env:VULKAN_SDK_VERSION'"
         if (!$env:VULKAN_SDK_VERSION) { throw "Vulkan SDK install error" }
-        TREE . /F
     - name: Checkout
       uses: actions/checkout@v3
       with:
