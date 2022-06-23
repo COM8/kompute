@@ -127,6 +127,7 @@ jobs:
     - name: "[Release g++] Build & Test"
       env:
         VK_ICD_FILENAMES: "/swiftshader/vk_swiftshader_icd.json"
+        VULKAN_SDK: "$GITHUB_WORKSPACE/VULKAN_SDK"
       uses: ashutoshvarma/action-cmake-build@master
       with:
         build-dir: ${{github.workspace}}/build
