@@ -22,6 +22,7 @@ set(_Vulkan_hint_library_search_paths
     "$ENV{VULKAN_SDK}\\Lib"
     "$ENV{VULKAN_SDK}\\Bin"
 )
+set(_Vulkan_library_name vulkan-1)
 find_library(Vulkan_LIBRARY
     NAMES ${_Vulkan_library_name}
     HINTS
