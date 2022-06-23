@@ -7,10 +7,10 @@ set(CMAKE_CXX_STANDARD 14)
 
 message(WARNING "VULKAN_SDK_ENV: $ENV{VULKAN_SDK}")
 set(_Vulkan_hint_include_search_paths
-    "$ENV{VULKAN_SDK}\\Include"
+    "$ENV{VULKAN_SDK}\\Include\\vulkan"
 )
 find_path(Vulkan_INCLUDE_DIR
-    NAMES "vulkan\\vulkan.h"
+    NAMES "vulkan.h"
     HINTS
     ${_Vulkan_hint_include_search_paths}
     REQUIRED
