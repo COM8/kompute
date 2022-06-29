@@ -243,6 +243,25 @@ class Tensor
         return { (T*)this->mRawData, ((T*)this->mRawData) + this->size() };
     }
 
+    /**
+     * Returns the vk::DescriptorType of the tensor. In case it has not been
+     * changed this call will return vk::DescriptorType::eStorageBuffer.
+     *
+     * @return The descriptor type of the tensor.
+     **/
+    vk::DescriptorType getDescriptorType();
+
+    /**
+     * Sets the vk::DescriptorType of the tensor. The default value for tensors
+     * is vk::DescriptorType::eStorageBuffer.
+     *
+     * This is useful in case you want to create a uniform buffer of some sort.
+     * For this one has to call it like:
+     * myTensor.setDescriptorType(vk::DescriptorType::eUniformBuffer);
+     * before passing the tensors to an algorithm.
+     **/
+    void setDescriptorType(vk::DescriptorType descriptorType);
+
   protected:
     // -------------- ALWAYS OWNED RESOURCES
     TensorTypes mTensorType;
@@ -250,6 +269,7 @@ class Tensor
     uint32_t mSize;
     uint32_t mDataTypeMemorySize;
     void* mRawData;
+    vk::DescriptorType mDescriptorType{ vk::DescriptorType::eStorageBuffer };
 
   private:
     // -------------- NEVER OWNED RESOURCES

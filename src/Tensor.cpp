@@ -251,6 +251,18 @@ Tensor::recordCopyBuffer(const vk::CommandBuffer& commandBuffer,
     commandBuffer.copyBuffer(*bufferFrom, *bufferTo, copyRegion);
 }
 
+vk::DescriptorType
+Tensor::getDescriptorType()
+{
+    return mDescriptorType;
+}
+
+void
+Tensor::setDescriptorType(vk::DescriptorType descriptorType)
+{
+    this->mDescriptorType = descriptorType;
+}
+
 void
 Tensor::recordPrimaryBufferMemoryBarrier(const vk::CommandBuffer& commandBuffer,
                                          vk::AccessFlagBits srcAccessMask,
