@@ -3,6 +3,7 @@
 #include "kompute/Tensor.hpp"
 #include "vulkan/vulkan_enums.hpp"
 #include <cassert>
+#include <stdexcept>
 
 namespace kp {
 
@@ -262,6 +263,12 @@ Tensor::getDescriptorType()
 void
 Tensor::setDescriptorType(vk::DescriptorType descriptorType)
 {
+    if (descriptorType != vk::DescriptorType::eUniformBuffer &&
+        descriptorType != vk::DescriptorType::eStorageBuffer) {
+        throw std::runtime_error(
+          "Failed to set descriptor type. Kompute currently only supports "
+          "'eUniformBuffer' and 'eStorageBuffer'.");
+    }
     this->mDescriptorType = descriptorType;
 }
 
