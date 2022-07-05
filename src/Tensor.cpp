@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "kompute/Tensor.hpp"
+#include "vulkan/vulkan_enums.hpp"
+#include <cassert>
 
 namespace kp {
 
@@ -339,20 +341,32 @@ Tensor::constructDescriptorBufferInfo()
 vk::BufferUsageFlags
 Tensor::getPrimaryBufferUsageFlags()
 {
+    vk::BufferUsageFlags flags;
+    switch (getDescriptorType()) {
+        case vk::DescriptorType::eStorageBuffer:
+            flags = vk::BufferUsageFlagBits::eStorageBuffer;
+            break;
+
+        case vk::DescriptorType::eUniformBuffer:
+            flags = vk::BufferUsageFlagBits::eUniformBuffer;
+            break;
+
+        default:
+            throw std::runtime_error("Kompute Tensor invalid descriptor type");
+            break;
+    }
+
     switch (this->mTensorType) {
         case TensorTypes::eDevice:
-            return vk::BufferUsageFlagBits::eStorageBuffer |
-                   vk::BufferUsageFlagBits::eTransferSrc |
-                   vk::BufferUsageFlagBits::eTransferDst;
-            break;
         case TensorTypes::eHost:
-            return vk::BufferUsageFlagBits::eStorageBuffer |
-                   vk::BufferUsageFlagBits::eTransferSrc |
+            return flags | vk::BufferUsageFlagBits::eTransferSrc |
                    vk::BufferUsageFlagBits::eTransferDst;
             break;
+
         case TensorTypes::eStorage:
-            return vk::BufferUsageFlagBits::eStorageBuffer;
+            return flags;
             break;
+
         default:
             throw std::runtime_error("Kompute Tensor invalid tensor type");
     }

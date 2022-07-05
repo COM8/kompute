@@ -4,38 +4,37 @@
 
 #include "kompute/Kompute.hpp"
 
+#include "kompute/Tensor.hpp"
 #include "shaders/Utils.hpp"
 
-struct UniformBufferObject
-{
-    uint u1;
-    uint u2;
-    uint u3;
-    uint u4;
-} __attribute__((aligned(16)));
-
-TEST(TestUniformBuffer, TestDestroyTensorSingle)
+TEST(TestUniformBuffer, TestUniformBufferSum)
 {
     kp::Manager mgr;
 
     std::string shader(R"(
       #version 450
+
+      // Ensure we have a compact layout for uniform arrays.
+      // Else we would have to pass multiples of sizeof(vec4) when binding.
+      // Source: https://www.reddit.com/r/vulkan/comments/u5jiws/comment/i575o3i/?utm_source=share&utm_medium=web2x&context=3
+      #extension GL_EXT_scalar_block_layout : require
+
       layout (local_size_x = 1) in;
 
       layout(set = 0, binding = 0) buffer resultBuffer { uint result[]; };
-      layout(set = 0, binding = 1) uniform uniformBufferObject {
+      layout(set = 0, binding = 1, std430) uniform uniformBufferObject {
         uint data[4];
-      } ubo;
+      };
 
       void main() {
           uint index = gl_GlobalInvocationID.x;
-          result[index] = ubo.data[0] + ubo.data[1] + ubo.data[2] + ubo.data[3];
+          result[index] = data[0] + data[1] + data[2] + data[3];
       })");
 
     std::vector<uint32_t> spirv = compileSource(shader);
 
     // Result tensor:
-    const size_t COUNT = 100000;
+    const size_t COUNT = 2;
     std::vector<unsigned int> resultValues{};
     resultValues.resize(COUNT);
     for (size_t i = 0; i < COUNT; i++) {
@@ -45,8 +44,12 @@ TEST(TestUniformBuffer, TestDestroyTensorSingle)
       mgr.tensorT(resultValues);
 
     // Data tensor:
-    std::vector<unsigned int> data{ 1, 2, 3, 4 };
-    std::shared_ptr<kp::TensorT<unsigned int>> dataTensor = mgr.tensorT(data);
+    std::vector<unsigned int> data{ 3, 4, 5, 6 };
+    std::shared_ptr<kp::Tensor> dataTensor =
+      mgr.tensor(data.data(),
+                 data.size(),
+                 sizeof(unsigned int),
+                 kp::Tensor::TensorDataTypes::eUnsignedInt);
     dataTensor->setDescriptorType(vk::DescriptorType::eUniformBuffer);
 
     std::shared_ptr<kp::Algorithm> algo =
@@ -59,33 +62,9 @@ TEST(TestUniformBuffer, TestDestroyTensorSingle)
       ->eval()
       ->eval<kp::OpTensorSyncLocal>(algo->getTensors());
 
-    {
-        std::shared_ptr<kp::Sequence> sq = nullptr;
-
-        {
-
-            tensorA = mgr.tensor(initialValues);
-
-            std::shared_ptr<kp::Algorithm> algo =
-              mgr.algorithm({ tensorA }, spirv);
-
-            // Sync values to and from device
-            mgr.sequence()->eval<kp::OpTensorSyncDevice>(algo->getTensors());
-
-            EXPECT_EQ(tensorA->vector(), initialValues);
-
-            mgr.sequence()
-              ->record<kp::OpAlgoDispatch>(algo)
-              ->eval()
-              ->eval<kp::OpTensorSyncLocal>(algo->getTensors());
-
-            const std::vector<float> expectedFinalValues = { 1.0f, 1.0f, 1.0f };
-            EXPECT_EQ(tensorA->vector(), expectedFinalValues);
-
-            tensorA->destroy();
-            EXPECT_FALSE(tensorA->isInit());
-        }
-        EXPECT_FALSE(tensorA->isInit());
+    std::vector<unsigned int> results = resultValuesTensor->vector();
+    for (unsigned int result : results) {
+        EXPECT_EQ(result, 18);
     }
 }
 
