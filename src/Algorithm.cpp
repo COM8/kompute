@@ -150,12 +150,11 @@ Algorithm::createParameters()
 
     std::vector<vk::DescriptorSetLayoutBinding> descriptorSetBindings;
     for (size_t i = 0; i < this->mTensors.size(); i++) {
-        descriptorSetBindings.emplace_back(i, // Binding index
-                                           vk::DescriptorType::eStorageBuffer,
-                                           1, // Descriptor count
-                                           vk::ShaderStageFlagBits::eCompute);
-        descriptorSetBindings.end()->setDescriptorType(
-          this->mTensors[i]->getDescriptorType());
+        descriptorSetBindings.emplace_back(
+          i, // Binding index
+          this->mTensors[i]->getDescriptorType(),
+          1, // Descriptor count
+          vk::ShaderStageFlagBits::eCompute);
     }
 
     // This is the component that is fed into the pipeline
