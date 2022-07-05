@@ -34,7 +34,7 @@ TEST(TestUniformBuffer, TestUniformBufferSum)
     std::vector<uint32_t> spirv = compileSource(shader);
 
     // Result tensor:
-    const size_t COUNT = 2;
+    const size_t COUNT = 100000;
     std::vector<unsigned int> resultValues{};
     resultValues.resize(COUNT);
     for (size_t i = 0; i < COUNT; i++) {
