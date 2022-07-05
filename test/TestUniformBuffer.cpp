@@ -68,6 +68,78 @@ TEST(TestUniformBuffer, TestUniformBufferSum)
     }
 }
 
+struct TestStruct
+{
+    uint d0;
+    uint d1;
+} __attribute__((aligned(8)));
+
+TEST(TestUniformBuffer, TestUniformBufferStructSum)
+{
+    kp::Manager mgr;
+
+    std::string shader(R"(
+      #version 450
+
+      // Ensure we have a compact layout for uniform arrays.
+      // Else we would have to pass multiples of sizeof(vec4) when binding.
+      // Source: https://www.reddit.com/r/vulkan/comments/u5jiws/comment/i575o3i/?utm_source=share&utm_medium=web2x&context=3
+      #extension GL_EXT_scalar_block_layout : require
+
+      layout (local_size_x = 1) in;
+
+      struct TestDescriptor {
+        uint d0;
+        uint d1;
+      };
+
+      layout(set = 0, binding = 0) buffer resultBuffer { uint result[]; };
+      layout(set = 0, binding = 1, std430) uniform uniformBufferObject {
+        TestDescriptor data[4];
+      };
+
+      void main() {
+          uint index = gl_GlobalInvocationID.x;
+          result[index] = data[0].d0 + data[0].d1 + data[1].d0 + data[1].d1 + data[2].d0 + data[2].d1 + data[3].d0 + data[3].d1;
+      })");
+
+    std::vector<uint32_t> spirv = compileSource(shader);
+
+    // Result tensor:
+    const size_t COUNT = 100000;
+    std::vector<unsigned int> resultValues{};
+    resultValues.resize(COUNT);
+    for (size_t i = 0; i < COUNT; i++) {
+        resultValues[i] = 0;
+    }
+    std::shared_ptr<kp::TensorT<unsigned int>> resultValuesTensor =
+      mgr.tensorT(resultValues);
+
+    // Data tensor:
+    std::vector<TestStruct> data{ { 1, 2 }, { 2, 3 }, { 3, 4 }, { 4, 5 } };
+    std::shared_ptr<kp::Tensor> dataTensor =
+      mgr.tensor(data.data(),
+                 data.size(),
+                 sizeof(TestStruct),
+                 kp::Tensor::TensorDataTypes::eUnsignedInt);
+    dataTensor->setDescriptorType(vk::DescriptorType::eUniformBuffer);
+
+    std::shared_ptr<kp::Algorithm> algo =
+      mgr.algorithm({ resultValuesTensor, dataTensor }, spirv);
+
+    mgr.sequence()->eval<kp::OpTensorSyncDevice>(algo->getTensors());
+
+    mgr.sequence()
+      ->record<kp::OpAlgoDispatch>(algo)
+      ->eval()
+      ->eval<kp::OpTensorSyncLocal>(algo->getTensors());
+
+    std::vector<unsigned int> results = resultValuesTensor->vector();
+    for (unsigned int result : results) {
+        EXPECT_EQ(result, 24);
+    }
+}
+
 int
 main(int argc, char* argv[])
 {
