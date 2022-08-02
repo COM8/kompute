@@ -4,6 +4,8 @@
 #include "fmt/format.h"
 #include "kompute/Version.hpp"
 #include "kompute/logger/Logger.hpp"
+#include "vulkan/vulkan_enums.hpp"
+#include <cstring>
 #include <fmt/core.h>
 #include <iterator>
 #include <set>
@@ -151,6 +153,21 @@ Manager::destroy()
 }
 
 void
+Manager::getIntersection(const std::vector<const char*>& v1,
+                         const std::vector<const char*>& v2,
+                         std::vector<const char*>& result)
+{
+    for (const char* s1 : v1) {
+        for (const char* s2 : v2) {
+            if (std::strcmp(s1, s2) == 0) {
+                result.push_back(s1);
+                break;
+            }
+        }
+    }
+}
+
+void
 Manager::createInstance()
 {
 
@@ -171,7 +188,10 @@ Manager::createInstance()
     extRequested.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     extRequested.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
     extRequested.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    extRequested.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
+    // Allows printf debugging
+    // https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/master/docs/debug_printf.md
+    extRequested.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+    // extRequested.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
 #endif
 
     // Check if all extensions are available:
@@ -189,13 +209,7 @@ Manager::createInstance()
 
     // Get the intersection between requested and available extensions:
     std::vector<const char*> extOverlap;
-    set_intersection(
-      extRequested.begin(),
-      extRequested.end(),
-      availExtNames.begin(),
-      availExtNames.end(),
-      std::back_inserter(extOverlap),
-      [](const char* a, const char* b) { return std::strcmp(a, b) == 0; });
+    getIntersection(extRequested, availExtNames, extOverlap);
 
     if (extOverlap.size() == extRequested.size()) {
         KP_LOG_INFO("Kompute Manager All requested Vulkan extensions got "
@@ -219,7 +233,7 @@ Manager::createInstance()
     std::vector<const char*> layersRequested{
         "VK_LAYER_LUNARG_assistant_layer",
         "VK_LAYER_LUNARG_standard_validation",
-        "VK_LAYER_KHRONOS_validation",
+        // "VK_LAYER_KHRONOS_validation", // Not available on all devices
     };
 
     // Get validation layer names from env variable:
@@ -253,13 +267,7 @@ Manager::createInstance()
 
     // Get the intersection between requested and available validation layers:
     std::vector<const char*> layerOverlap;
-    set_intersection(
-      layersRequested.begin(),
-      layersRequested.end(),
-      availLayerNames.begin(),
-      availLayerNames.end(),
-      std::back_inserter(layerOverlap),
-      [](const char* a, const char* b) { return std::strcmp(a, b) == 0; });
+    getIntersection(layersRequested, availLayerNames, layerOverlap);
 
     if (layerOverlap.size() == layersRequested.size()) {
         KP_LOG_INFO("Kompute Manager All requested Vulkan validation layers "
@@ -285,15 +293,25 @@ Manager::createInstance()
       layersRequested.size(),
       layersRequested.data(),
 #else
-      {},
+      0,
       {}
 #endif
       static_cast<uint32_t>(extRequested.size()),
       extRequested.data());
 
     this->mInstance = std::make_shared<vk::Instance>();
-    vk::createInstance(&createInfo, nullptr, this->mInstance.get());
-    KP_LOG_DEBUG("Kompute Manager Instance Created");
+    vk::Result result =
+      vk::createInstance(&createInfo, nullptr, this->mInstance.get());
+    if (result == vk::Result::eSuccess) {
+        KP_LOG_DEBUG("Kompute Manager Instance Created");
+    } else {
+        std::string err = fmt::format(
+          "Kompute Manager Failed to create Vulkan instance! Results names can "
+          "be found inside vulkan_enums.hpp. Result: {}",
+          static_cast<int>(result));
+        KP_LOG_ERROR("{}", err);
+        throw std::runtime_error(err);
+    }
 
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     KP_LOG_DEBUG("Kompute Manager adding debug callbacks");
