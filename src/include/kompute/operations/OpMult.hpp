@@ -5,7 +5,7 @@
 
 #include "kompute/Core.hpp"
 
-#include "ShaderOpMult.hpp"
+#include "kompute/shaders/generated/ShaderOpMult.hpp"
 
 #include "kompute/Algorithm.hpp"
 #include "kompute/Tensor.hpp"

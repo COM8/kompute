@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 3.20)
 # Kompute
 # ####################################################
 target_include_directories(kompute PUBLIC $<INSTALL_INTERFACE:include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/kompute_generated_includes/>)
 
 target_sources(kompute PRIVATE
 
@@ -25,9 +26,12 @@ target_sources(kompute PRIVATE
     kompute/operations/OpTensorSyncLocal.hpp
 
     kompute/logger/Logger.hpp
+
+    ${PROJECT_BINARY_DIR}/kompute_generated_includes/kompute/komputeVersion.hpp
 )
 
 install(DIRECTORY kompute DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY ${PROJECT_BINARY_DIR}/kompute_generated_includes/kompute DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # ####################################################
 # Logger

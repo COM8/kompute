@@ -15,7 +15,7 @@
 #include "kompute/operations/OpTensorSyncLocal.hpp"
 
 // Will be build by CMake and placed inside the build directory
-#include "ShaderLogisticRegression.hpp"
-#include "ShaderOpMult.hpp"
+#include "kompute/shaders/generated/ShaderLogisticRegression.hpp"
+#include "kompute/shaders/generated/ShaderOpMult.hpp"
 
 #include "kompute/komputeVersion.hpp"
