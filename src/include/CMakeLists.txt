@@ -27,7 +27,7 @@ target_sources(kompute PRIVATE
 
     kompute/logger/Logger.hpp
 
-    ${PROJECT_BINARY_DIR}/kompute_generated_includes/kompute/komputeVersion.hpp
+    ${PROJECT_BINARY_DIR}/kompute_generated_includes/kompute/Version.hpp
 )
 
 install(DIRECTORY kompute DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

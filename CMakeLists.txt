@@ -5,7 +5,7 @@ project(kompute VERSION 0.8.1 LANGUAGES CXX)
 
 # Generate version header
 math(EXPR kompute_VERSION_NUM "${kompute_VERSION_MAJOR} * 0x10000 + ${kompute_VERSION_MINOR} * 0x100 + ${kompute_VERSION_PATCH}" OUTPUT_FORMAT HEXADECIMAL)
-configure_file("${kompute_SOURCE_DIR}/cmake/komputeVersion.hpp.in" "${kompute_BINARY_DIR}/kompute_generated_includes/kompute/komputeVersion.hpp")
+configure_file("${kompute_SOURCE_DIR}/cmake/Version.hpp.in" "${kompute_BINARY_DIR}/kompute_generated_includes/kompute/Version.hpp")
 
 set(CMAKE_CXX_STANDARD 14)
 

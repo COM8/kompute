@@ -18,4 +18,4 @@
 #include "kompute/shaders/generated/ShaderLogisticRegression.hpp"
 #include "kompute/shaders/generated/ShaderOpMult.hpp"
 
-#include "kompute/komputeVersion.hpp"
+#include "kompute/Version.hpp"
