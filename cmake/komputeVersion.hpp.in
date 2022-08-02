@@ -1,0 +1,28 @@
+#pragma once
+
+/**
+ * Kompute version as a string.
+ **/
+#define KP_VERSION "${kompute_VERSION}"
+
+/**
+ * Kompute version split up into parts.
+ **/
+#define KP_VERSION_MAJOR ${kompute_VERSION_MAJOR}
+#define KP_VERSION_MINOR ${kompute_VERSION_MINOR}
+#define KP_VERSION_PATCH ${kompute_VERSION_PATCH}
+
+/**
+ * Kompute version as a single hex digit.
+ * it can be split up into three parts:
+ * 0xAABBCC
+ * AA: The current CPR major version number in a hex format.
+ * BB: The current CPR minor version number in a hex format.
+ * CC: The current CPR patch version number in a hex format.
+ *
+ * Examples:
+ * '0x010702' -> 01.07.02 -> KP_VERSION: 1.7.2
+ * '0xA13722' -> A1.37.22 -> KP_VERSION: 161.55.34
+ * '0x801' -> 00.08.01 -> KP_VERSION: 0.8.1
+ **/
+#define KP_VERSION_NUM ${kompute_VERSION_NUM}

@@ -3,9 +3,13 @@
 cmake_minimum_required(VERSION 3.20)
 project(kompute VERSION 0.8.1 LANGUAGES CXX)
 
+# Generate version header
+math(EXPR kompute_VERSION_NUM "${kompute_VERSION_MAJOR} * 0x10000 + ${kompute_VERSION_MINOR} * 0x100 + ${kompute_VERSION_PATCH}" OUTPUT_FORMAT HEXADECIMAL)
+configure_file("${kompute_SOURCE_DIR}/cmake/komputeVersion.hpp.in" "${kompute_BINARY_DIR}/kompute_generated_includes/kompute/komputeVersion.hpp")
+
 set(CMAKE_CXX_STANDARD 14)
 
-# Only change the folder behavior if kompute is not a subproject
+# Only change the folder behavior if Kompute is not a subproject
 if(${CMAKE_PROJECT_NAME} STREQUAL ${PROJECT_NAME})
     set_property(GLOBAL PROPERTY USE_FOLDERS ON)
     set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "CMake")
