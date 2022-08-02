@@ -2,6 +2,7 @@
 
 #include "kompute/Manager.hpp"
 #include "fmt/format.h"
+#include "kompute/Version.hpp"
 #include "kompute/logger/Logger.hpp"
 #include <fmt/core.h>
 #include <iterator>
@@ -157,37 +158,71 @@ Manager::createInstance()
 
     this->mFreeInstance = true;
 
-    vk::ApplicationInfo applicationInfo;
-    applicationInfo.pApplicationName = "Kompute";
-    applicationInfo.pEngineName = "Kompute";
-    applicationInfo.apiVersion = KOMPUTE_VK_API_VERSION;
-    applicationInfo.engineVersion = KOMPUTE_VK_API_VERSION;
-    applicationInfo.applicationVersion = KOMPUTE_VK_API_VERSION;
+    vk::ApplicationInfo appInfo(
+      "Kompute",
+      VK_MAKE_VERSION(KP_VERSION_MAJOR, KP_VERSION_MINOR, KP_VERSION_MAJOR),
+      "No Kompute Engine",
+      VK_MAKE_VERSION(KP_VERSION_MAJOR, KP_VERSION_MINOR, KP_VERSION_MAJOR),
+      KOMPUTE_VK_API_VERSION);
 
-    std::vector<const char*> applicationExtensions;
-
+    // Enable extensions:
+    std::vector<const char*> extRequested;
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
-    applicationExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    extRequested.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    extRequested.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    extRequested.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    extRequested.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
 #endif
 
-    vk::InstanceCreateInfo computeInstanceCreateInfo;
-    computeInstanceCreateInfo.pApplicationInfo = &applicationInfo;
-    if (!applicationExtensions.empty()) {
-        computeInstanceCreateInfo.enabledExtensionCount =
-          (uint32_t)applicationExtensions.size();
-        computeInstanceCreateInfo.ppEnabledExtensionNames =
-          applicationExtensions.data();
+    // Check if all extensions are available:
+    std::vector<vk::ExtensionProperties> availExts =
+      vk::enumerateInstanceExtensionProperties();
+    std::vector<const char*> availExtNames;
+    availExtNames.reserve(availExts.size());
+    for (const vk::ExtensionProperties& extProp : availExts) {
+        availExtNames.push_back(extProp.extensionName);
+    }
+    KP_LOG_DEBUG(
+      "Kompute Manager Available Vulkan extensions (amount:  {}): {}",
+      availExtNames.size(),
+      fmt::join(availExtNames, ", "));
+
+    // Get the intersection between requested and available extensions:
+    std::vector<const char*> extOverlap;
+    set_intersection(
+      extRequested.begin(),
+      extRequested.end(),
+      availExtNames.begin(),
+      availExtNames.end(),
+      std::back_inserter(extOverlap),
+      [](const char* a, const char* b) { return std::strcmp(a, b) == 0; });
+
+    if (extOverlap.size() == extRequested.size()) {
+        KP_LOG_INFO("Kompute Manager All requested Vulkan extensions got "
+                    "enabled successfully.");
+    } else {
+        std::string err = fmt::format(
+          "Kompute Manager Failed to create Vulkan instance! Only {} out of {} "
+          "extensions are "
+          "available.\nRequested extensions: {}\nAvailable extensions: {}",
+          extOverlap.size(),
+          extRequested.size(),
+          fmt::join(extRequested, ", "),
+          fmt::join(extOverlap, ", "));
+        KP_LOG_ERROR("{}", err);
+        throw std::runtime_error(err);
     }
 
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     KP_LOG_DEBUG("Kompute Manager adding debug validation layers");
-    // We'll identify the layers that are supported
-    std::vector<const char*> validLayerNames;
-    std::vector<const char*> desiredLayerNames = {
+    // Enable validation layers:
+    std::vector<const char*> layersRequested{
         "VK_LAYER_LUNARG_assistant_layer",
         "VK_LAYER_LUNARG_standard_validation",
         "VK_LAYER_KHRONOS_validation",
     };
+
+    // Get validation layer names from env variable:
     std::vector<std::string> envLayerNames;
     const char* envLayerNamesVal = std::getenv("KOMPUTE_ENV_DEBUG_LAYERS");
     if (envLayerNamesVal != nullptr && *envLayerNamesVal != '\0') {
@@ -198,55 +233,77 @@ Manager::createInstance()
         std::istream_iterator<std::string> end;
         envLayerNames = std::vector<std::string>(beg, end);
         for (const std::string& layerName : envLayerNames) {
-            desiredLayerNames.push_back(layerName.c_str());
+            layersRequested.push_back(layerName.c_str());
         }
-        KP_LOG_DEBUG("Desired layers: {}", fmt::join(desiredLayerNames, ", "));
+        KP_LOG_DEBUG("Kompute Manager Desired layers: {}",
+                     fmt::join(layersRequested, ", "));
     }
 
-    // Identify the valid layer names based on the desiredLayerNames
-    {
-        std::set<std::string> uniqueLayerNames;
-        std::vector<vk::LayerProperties> availableLayerProperties =
-          vk::enumerateInstanceLayerProperties();
-        for (vk::LayerProperties layerProperties : availableLayerProperties) {
-            std::string layerName(layerProperties.layerName.data());
-            uniqueLayerNames.insert(layerName);
-        }
-        KP_LOG_DEBUG("Available layers: {}", fmt::join(uniqueLayerNames, ", "));
-        for (const char* desiredLayerName : desiredLayerNames) {
-            if (uniqueLayerNames.count(desiredLayerName) != 0) {
-                validLayerNames.push_back(desiredLayerName);
-            }
-        }
+    // Check if all validation layers are available:
+    std::vector<vk::LayerProperties> availLayers =
+      vk::enumerateInstanceLayerProperties();
+    std::vector<const char*> availLayerNames;
+    availLayerNames.reserve(availLayers.size());
+    for (const vk::LayerProperties& layerProp : availLayers) {
+        availLayerNames.push_back(layerProp.layerName);
     }
+    KP_LOG_DEBUG("Available Vulkan validation layers (amount: {}): {}",
+                 availLayerNames.size(),
+                 fmt::join(availLayerNames, ", "));
 
-    if (!validLayerNames.empty()) {
-        KP_LOG_DEBUG(
-          "Kompute Manager Initializing instance with valid layers: {}",
-          fmt::join(validLayerNames, ", "));
-        computeInstanceCreateInfo.enabledLayerCount =
-          static_cast<uint32_t>(validLayerNames.size());
-        computeInstanceCreateInfo.ppEnabledLayerNames = validLayerNames.data();
+    // Get the intersection between requested and available validation layers:
+    std::vector<const char*> layerOverlap;
+    set_intersection(
+      layersRequested.begin(),
+      layersRequested.end(),
+      availLayerNames.begin(),
+      availLayerNames.end(),
+      std::back_inserter(layerOverlap),
+      [](const char* a, const char* b) { return std::strcmp(a, b) == 0; });
+
+    if (layerOverlap.size() == layersRequested.size()) {
+        KP_LOG_INFO("Kompute Manager All requested Vulkan validation layers "
+                    "got enabled successfully.");
     } else {
-        KP_LOG_WARN("Kompute Manager no valid layer names found from desired "
-                    "layer names");
+        std::string err = fmt::format(
+          "Kompute Manager Failed to create Vulkan instance! Only {} out of {} "
+          "validation layers are available.\nRequested validation "
+          "layers: {}\nAvailable validation layers: {}",
+          layerOverlap.size(),
+          layersRequested.size(),
+          fmt::join(layersRequested, ", "),
+          fmt::join(layerOverlap, ", "));
+        KP_LOG_ERROR("{}", err);
+        throw std::runtime_error(err);
     }
 #endif
 
+    vk::InstanceCreateInfo createInfo(
+      {},
+      &appInfo,
+#ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
+      layersRequested.size(),
+      layersRequested.data(),
+#else
+      {},
+      {}
+#endif
+      static_cast<uint32_t>(extRequested.size()),
+      extRequested.data());
+
     this->mInstance = std::make_shared<vk::Instance>();
-    vk::createInstance(
-      &computeInstanceCreateInfo, nullptr, this->mInstance.get());
+    vk::createInstance(&createInfo, nullptr, this->mInstance.get());
     KP_LOG_DEBUG("Kompute Manager Instance Created");
 
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     KP_LOG_DEBUG("Kompute Manager adding debug callbacks");
-    if (validLayerNames.size() > 0) {
+    if (!layersRequested.empty()) {
         vk::DebugReportFlagsEXT debugFlags =
           vk::DebugReportFlagBitsEXT::eError |
           vk::DebugReportFlagBitsEXT::eWarning;
         vk::DebugReportCallbackCreateInfoEXT debugCreateInfo = {};
         debugCreateInfo.pfnCallback =
-          (PFN_vkDebugReportCallbackEXT)debugMessageCallback;
+          static_cast<PFN_vkDebugReportCallbackEXT>(debugMessageCallback);
         debugCreateInfo.flags = debugFlags;
 
         this->mDebugDispatcher.init(*this->mInstance, &vkGetInstanceProcAddr);

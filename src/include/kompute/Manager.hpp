@@ -251,6 +251,34 @@ class Manager
     void createDevice(const std::vector<uint32_t>& familyQueueIndices = {},
                       uint32_t hysicalDeviceIndex = 0,
                       const std::vector<std::string>& desiredExtensions = {});
+
+    /**
+     * Used for comparing available and requested extensions and validation
+     *layers. This function can be removed as soon, as we update the min cpp
+     *version to cpp17 Source:
+     *https://en.cppreference.com/w/cpp/algorithm/set_intersection
+     **/
+    template<class InputIt1, class InputIt2, class OutputIt, class Compare>
+    OutputIt set_intersection(InputIt1 first1,
+                              InputIt1 last1,
+                              InputIt2 first2,
+                              InputIt2 last2,
+                              OutputIt d_first,
+                              Compare comp)
+    {
+        while (first1 != last1 && first2 != last2) {
+            if (comp(*first1, *first2)) {
+                ++first1;
+            } else {
+                if (!comp(*first2, *first1)) {
+                    *d_first++ =
+                      *first1++; // *first1 and *first2 are equivalent.
+                }
+                ++first2;
+            }
+        }
+        return d_first;
+    }
 };
 
 } // End namespace kp
