@@ -5,6 +5,8 @@
 #include "kompute/Version.hpp"
 #include "kompute/logger/Logger.hpp"
 #include "vulkan/vulkan_enums.hpp"
+#include "vulkan/vulkan_handles.hpp"
+#include <cstddef>
 #include <cstring>
 #include <fmt/core.h>
 #include <iterator>
@@ -31,6 +33,33 @@ debugMessageCallback(VkDebugReportFlagsEXT /*flags*/,
                      void* /*pUserData*/)
 {
     KP_LOG_DEBUG("[VALIDATION]: {} - {}", pLayerPrefix, pMessage);
+    return VK_FALSE;
+}
+
+VkResult
+CreateDebugUtilsMessengerEXT(
+  vk::Instance& instance,
+  const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+  const VkAllocationCallbacks* pAllocator,
+  VkDebugUtilsMessengerEXT* pCallback)
+{
+    PFN_vkCreateDebugUtilsMessengerEXT func =
+      reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
+        instance.getProcAddr("vkCreateDebugUtilsMessengerEXT"));
+    if (func) {
+        return func(instance, pCreateInfo, pAllocator, pCallback);
+    }
+    return VK_ERROR_EXTENSION_NOT_PRESENT;
+}
+
+VkBool32
+debugUtilsMessageCallback(
+  VkDebugUtilsMessageSeverityFlagBitsEXT /*messageSeverity*/,
+  VkDebugUtilsMessageTypeFlagsEXT /*messageType*/,
+  const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+  void* /*pUserData*/)
+{
+    KP_LOG_DEBUG("[VALIDATION][UTILS]: {}", pCallbackData->pMessage);
     return VK_FALSE;
 }
 #endif
@@ -142,6 +171,12 @@ Manager::destroy()
           this->mDebugReportCallback, nullptr, this->mDebugDispatcher);
         KP_LOG_DEBUG("Kompute Manager Destroyed Debug Report Callback");
     }
+    if (this->mDebugUtilsReportCallback) {
+        this->mInstance->destroyDebugUtilsMessengerEXT(
+          this->mDebugUtilsReportCallback);
+        KP_LOG_DEBUG(
+          "Kompute Manager Destroyed Debug Utils Messenger Callback");
+    }
 #endif
 
     if (this->mFreeInstance) {
@@ -186,12 +221,7 @@ Manager::createInstance()
     std::vector<const char*> extRequested;
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     extRequested.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
-    extRequested.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
     extRequested.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    // Allows printf debugging
-    // https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/master/docs/debug_printf.md
-    extRequested.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
-    // extRequested.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
 #endif
 
     // Check if all extensions are available:
@@ -212,8 +242,9 @@ Manager::createInstance()
     getIntersection(extRequested, availExtNames, extOverlap);
 
     if (extOverlap.size() == extRequested.size()) {
-        KP_LOG_INFO("Kompute Manager All requested Vulkan extensions got "
-                    "enabled successfully.");
+        KP_LOG_INFO("Kompute Manager All ({}) requested Vulkan extensions got "
+                    "enabled successfully.",
+                    extRequested.size());
     } else {
         std::string err = fmt::format(
           "Kompute Manager Failed to create Vulkan instance! Only {} out of {} "
@@ -230,11 +261,7 @@ Manager::createInstance()
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     KP_LOG_DEBUG("Kompute Manager adding debug validation layers");
     // Enable validation layers:
-    std::vector<const char*> layersRequested{
-        "VK_LAYER_LUNARG_assistant_layer",
-        "VK_LAYER_LUNARG_standard_validation",
-        // "VK_LAYER_KHRONOS_validation", // Not available on all devices
-    };
+    std::vector<const char*> layersRequested;
 
     // Get validation layer names from env variable:
     std::vector<std::string> envLayerNames;
@@ -270,8 +297,10 @@ Manager::createInstance()
     getIntersection(layersRequested, availLayerNames, layerOverlap);
 
     if (layerOverlap.size() == layersRequested.size()) {
-        KP_LOG_INFO("Kompute Manager All requested Vulkan validation layers "
-                    "got enabled successfully.");
+        KP_LOG_INFO(
+          "Kompute Manager All ({}) requested Vulkan validation layers "
+          "got enabled successfully.",
+          extRequested.size());
     } else {
         std::string err = fmt::format(
           "Kompute Manager Failed to create Vulkan instance! Only {} out of {} "
@@ -299,6 +328,16 @@ Manager::createInstance()
       static_cast<uint32_t>(extRequested.size()),
       extRequested.data());
 
+    std::vector<vk::ValidationFeatureEnableEXT> valFeaturesEnabled = {
+        vk::ValidationFeatureEnableEXT::eDebugPrintf
+    };
+    vk::ValidationFeaturesEXT valFeatures(
+      valFeaturesEnabled.size(), valFeaturesEnabled.data(), 0, nullptr);
+    valFeatures.enabledValidationFeatureCount =
+      static_cast<uint32_t>(valFeaturesEnabled.size());
+    valFeatures.pEnabledValidationFeatures = valFeaturesEnabled.data();
+    createInfo.setPNext(&valFeatures);
+
     this->mInstance = std::make_shared<vk::Instance>();
     vk::Result result =
       vk::createInstance(&createInfo, nullptr, this->mInstance.get());
@@ -315,21 +354,44 @@ Manager::createInstance()
 
 #ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
     KP_LOG_DEBUG("Kompute Manager adding debug callbacks");
-    if (!layersRequested.empty()) {
-        vk::DebugReportFlagsEXT debugFlags =
-          vk::DebugReportFlagBitsEXT::eError |
-          vk::DebugReportFlagBitsEXT::eWarning;
-        vk::DebugReportCallbackCreateInfoEXT debugCreateInfo = {};
-        debugCreateInfo.pfnCallback =
-          static_cast<PFN_vkDebugReportCallbackEXT>(debugMessageCallback);
-        debugCreateInfo.flags = debugFlags;
+    vk::DebugReportFlagsEXT debugFlags =
+      vk::DebugReportFlagBitsEXT::eError |
+      vk::DebugReportFlagBitsEXT::eWarning |
+      vk::DebugReportFlagBitsEXT::eDebug |
+      vk::DebugReportFlagBitsEXT::eInformation |
+      vk::DebugReportFlagBitsEXT::ePerformanceWarning;
+    vk::DebugReportCallbackCreateInfoEXT debugCreateInfo = {};
+    debugCreateInfo.pfnCallback =
+      static_cast<PFN_vkDebugReportCallbackEXT>(debugMessageCallback);
+    debugCreateInfo.flags = debugFlags;
 
-        this->mDebugDispatcher.init(*this->mInstance, &vkGetInstanceProcAddr);
-        this->mDebugReportCallback =
-          this->mInstance->createDebugReportCallbackEXT(
-            debugCreateInfo, nullptr, this->mDebugDispatcher);
+    this->mDebugDispatcher.init(*this->mInstance, &vkGetInstanceProcAddr);
+    this->mDebugReportCallback = this->mInstance->createDebugReportCallbackEXT(
+      debugCreateInfo, nullptr, this->mDebugDispatcher);
+
+    vk::DebugUtilsMessengerCreateInfoEXT debugInfoFlags(
+      vk::DebugUtilsMessengerCreateFlagsEXT(),
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose |
+        vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning |
+        vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral |
+        vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation |
+        vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+      static_cast<PFN_vkDebugUtilsMessengerCallbackEXT>(
+        debugUtilsMessageCallback),
+      nullptr);
+
+    if (CreateDebugUtilsMessengerEXT(
+          *(this->mInstance),
+          reinterpret_cast<const VkDebugUtilsMessengerCreateInfoEXT*>(
+            &createInfo),
+          nullptr,
+          &this->mDebugUtilsReportCallback) != VK_SUCCESS) {
+        throw std::runtime_error("failed to set up debug callback!");
     }
 #endif
+
+    this->mInstance->createDebugUtilsMessengerEXT(debugInfoFlags);
 }
 
 void
@@ -453,36 +515,125 @@ Manager::createDevice(const std::vector<uint32_t>& familyQueueIndices,
         deviceQueueCreateInfos.push_back(deviceQueueCreateInfo);
     }
 
-    KP_LOG_DEBUG("Kompute Manager desired extension layers {}",
-                 fmt::join(desiredExtensions, ", "));
+    // Enable extensions:
+    std::vector<const char*> extRequested;
+    // Convert to cstring list internally to prevent having to change the API
+    extRequested.reserve(desiredExtensions.size());
+    for (const std::string& s : desiredExtensions) {
+        extRequested.push_back(s.c_str());
+    }
 
-    std::vector<vk::ExtensionProperties> deviceExtensions =
+#ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
+    // Allows printf debugging
+    // https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/master/docs/debug_printf.md
+    extRequested.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+#endif
+
+    // Check if all extensions are available:
+    std::vector<vk::ExtensionProperties> availExts =
       this->mPhysicalDevice->enumerateDeviceExtensionProperties();
+    std::vector<const char*> availExtNames;
+    availExtNames.reserve(availExts.size());
+    for (const vk::ExtensionProperties& extProp : availExts) {
+        availExtNames.push_back(extProp.extensionName);
+    }
+    KP_LOG_DEBUG(
+      "Kompute Manager Available Vulkan device extensions (amount:  {}): {}",
+      availExtNames.size(),
+      fmt::join(availExtNames, ", "));
 
-    std::set<std::string> uniqueExtensionNames;
-    for (const vk::ExtensionProperties& ext : deviceExtensions) {
-        uniqueExtensionNames.insert(ext.extensionName);
+    // Get the intersection between requested and available extensions:
+    std::vector<const char*> extOverlap;
+    getIntersection(extRequested, availExtNames, extOverlap);
+
+    if (extOverlap.size() == extRequested.size()) {
+        KP_LOG_INFO(
+          "Kompute Manager All ({}) requested Vulkan device extensions got "
+          "enabled successfully.",
+          extRequested.size());
+    } else {
+        std::string err = fmt::format(
+          "Kompute Manager Failed to create Vulkan device! Only {} out of {} "
+          "extensions are "
+          "available.\nRequested extensions: {}\nAvailable extensions: {}",
+          extOverlap.size(),
+          extRequested.size(),
+          fmt::join(extRequested, ", "),
+          fmt::join(extOverlap, ", "));
+        KP_LOG_ERROR("{}", err);
+        throw std::runtime_error(err);
     }
-    KP_LOG_DEBUG("Kompute Manager available extensions {}",
-                 fmt::join(uniqueExtensionNames, ", "));
-    std::vector<const char*> validExtensions;
-    for (const std::string& ext : desiredExtensions) {
-        if (uniqueExtensionNames.count(ext) != 0) {
-            validExtensions.push_back(ext.c_str());
+
+#ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
+    KP_LOG_DEBUG("Kompute Manager adding debug device validation layers");
+    // Enable validation layers:
+    std::vector<const char*> layersRequested;
+
+    // Get validation layer names from env variable:
+    std::vector<std::string> envLayerNames;
+    const char* envLayerNamesVal =
+      std::getenv("KOMPUTE_ENV_DEVICE_DEBUG_LAYERS");
+    if (envLayerNamesVal != nullptr && *envLayerNamesVal != '\0') {
+        KP_LOG_DEBUG("Kompute Manager adding device environment layers: {}",
+                     envLayerNamesVal);
+        std::istringstream iss(envLayerNamesVal);
+        std::istream_iterator<std::string> beg(iss);
+        std::istream_iterator<std::string> end;
+        envLayerNames = std::vector<std::string>(beg, end);
+        for (const std::string& layerName : envLayerNames) {
+            layersRequested.push_back(layerName.c_str());
         }
+        KP_LOG_DEBUG("Kompute Manager Desired device debug layers: {}",
+                     fmt::join(layersRequested, ", "));
     }
-    if (desiredExtensions.size() != validExtensions.size()) {
-        KP_LOG_ERROR("Kompute Manager not all extensions were added: {}",
-                     fmt::join(validExtensions, ", "));
+
+    // Check if all validation layers are available:
+    std::vector<vk::LayerProperties> availLayers =
+      vk::enumerateInstanceLayerProperties();
+    std::vector<const char*> availLayerNames;
+    availLayerNames.reserve(availLayers.size());
+    for (const vk::LayerProperties& layerProp : availLayers) {
+        availLayerNames.push_back(layerProp.layerName);
     }
+    KP_LOG_DEBUG("Available Vulkan device validation layers (amount: {}): {}",
+                 availLayerNames.size(),
+                 fmt::join(availLayerNames, ", "));
+
+    // Get the intersection between requested and available validation layers:
+    std::vector<const char*> layerOverlap;
+    getIntersection(layersRequested, availLayerNames, layerOverlap);
+
+    if (layerOverlap.size() == layersRequested.size()) {
+        KP_LOG_INFO(
+          "Kompute Manager All ({}) requested Vulkan device validation layers "
+          "got enabled successfully.",
+          layersRequested.size());
+    } else {
+        std::string err = fmt::format(
+          "Kompute Manager Failed to create Vulkan device! Only {} out of {} "
+          "validation layers are available.\nRequested validation "
+          "layers: {}\nAvailable validation layers: {}",
+          layerOverlap.size(),
+          layersRequested.size(),
+          fmt::join(layersRequested, ", "),
+          fmt::join(layerOverlap, ", "));
+        KP_LOG_ERROR("{}", err);
+        throw std::runtime_error(err);
+    }
+#endif
 
     vk::DeviceCreateInfo deviceCreateInfo(vk::DeviceCreateFlags(),
                                           deviceQueueCreateInfos.size(),
                                           deviceQueueCreateInfos.data(),
-                                          {},
-                                          {},
-                                          validExtensions.size(),
-                                          validExtensions.data());
+#ifndef KOMPUTE_DISABLE_VK_DEBUG_LAYERS
+                                          layersRequested.size(),
+                                          layersRequested.data(),
+#else
+      0,
+      {}
+#endif
+                                          extRequested.size(),
+                                          extRequested.data());
 
     this->mDevice = std::make_shared<vk::Device>();
     physicalDevice.createDevice(
